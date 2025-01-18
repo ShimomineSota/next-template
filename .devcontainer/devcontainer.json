@@ -1,0 +1,24 @@
+{
+	"name": "next-template",
+	"image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+	"customizations": {
+		"vscode": {
+			"settings": {},
+			"extensions": [
+				"bradlc.vscode-tailwindcss",
+				"prisma.prisma"
+			]
+		}
+	},
+	"postCreateCommand": "npm install",
+	"forwardPorts": [
+		3000
+	],
+	"portsAttributes": {
+		"3000": {
+			"label": "Next.js Dev Server",
+			"onAutoForward": "openBrowser"
+		}
+	},
+	"remoteUser": "node"
+}
