@@ -1,19 +1,22 @@
 {
-	"name": "next-template",
-	"image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+	"name": "next-blog",
+	"image": "mcr.microsoft.com/devcontainers/typescript-node:22",
+	"features": {
+		"ghcr.io/devcontainers/features/github-cli:1": {}
+	},
 	"customizations": {
 		"vscode": {
 			"settings": {},
 			"extensions": [
 				"bradlc.vscode-tailwindcss",
-				"prisma.prisma"
+				"prisma.prisma",
+				"github.copilot",
+				"streetsidesoftware.code-spell-checker"
 			]
 		}
 	},
 	"postCreateCommand": "npm install",
-	"forwardPorts": [
-		3000
-	],
+	"forwardPorts": [3000],
 	"portsAttributes": {
 		"3000": {
 			"label": "Next.js Dev Server",
