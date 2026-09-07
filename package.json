@@ -1,0 +1,46 @@
+{
+  "name": "next-template",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare": "panda codegen && vp config --no-agent",
+    "dev": "vp exec vinext dev",
+    "build": "vp exec vinext build",
+    "start": "vp exec wrangler dev --config dist/server/wrangler.json",
+    "deploy": "vp exec vinext-cloudflare deploy --config dist/server/wrangler.json",
+    "typegen": "vp exec vinext typegen",
+    "compat": "vp exec vinext check",
+    "check": "vp check",
+    "lint": "vp lint",
+    "fmt": "vp fmt",
+    "test": "vp test"
+  },
+  "dependencies": {
+    "@t3-oss/env-nextjs": "0.13.11",
+    "@vinext/cloudflare": "1.0.0-beta.7",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-server-dom-webpack": "19.2.8",
+    "valibot": "1.4.2",
+    "vinext": "1.0.0-beta.9"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "1.54.5",
+    "@pandacss/dev": "1.12.1",
+    "@pandacss/eslint-plugin": "0.3.2",
+    "@types/node": "26.5.0",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "@vitejs/plugin-react": "6.1.1",
+    "@vitejs/plugin-rsc": "0.5.34",
+    "typescript": "7.0.2",
+    "vite": "npm:@voidzero-dev/vite-plus-core@0.3.0",
+    "vite-plus": "0.3.0",
+    "wrangler": "4.129.1"
+  },
+  "overrides": {
+    "vite": "npm:@voidzero-dev/vite-plus-core@0.3.0"
+  },
+  "packageManager": "npm@11.6.2"
+}
