@@ -7,14 +7,16 @@ import { imagesOptimizer } from "@vinext/cloudflare/images/images-optimizer";
 
 // vinext's "rsc" environment sets `resolve.external` for Node builtins, which
 // @cloudflare/vite-plugin refuses to allow on Worker-bound environments. That
-// collision only shows up when Vitest resolves the config (plain dev/build
-// never hits it), and plain unit tests need neither plugin, so both are
-// skipped under Vitest.
+// collision only shows up when Vitest resolves the config with both plugins
+// present (plain dev/build never hits it) - vinext() alone is fine under
+// Vitest (verified: a throwaway test passed with only vinext() registered),
+// so only cloudflare() is skipped there; keeping vinext() means tests that
+// import next/* shims (next/image, next/link, ...) still resolve correctly.
 const isVitest = !!process.env.VITEST;
 
 export default defineConfig({
   plugins: isVitest
-    ? []
+    ? [vinext()]
     : [
         vinext({
           cache: { data: kvDataAdapter(), cdn: cdnAdapter() },
