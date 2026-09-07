@@ -1,0 +1,64 @@
+name: Template bootstrap
+
+# Runs once, on the first push after "Use this template", to replace the
+# `next-template` placeholder with the new repository name and then delete
+# itself. No-op on the template repo and on any already-bootstrapped repo, so
+# it is safe to leave enabled.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    if: github.repository != 'ShimomineSota/next-template'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rewrite placeholders
+        id: rewrite
+        env:
+          RAW_NAME: ${{ github.event.repository.name }}
+        run: |
+          set -euo pipefail
+
+          if ! grep -q '"name": "next-template"' package.json; then
+            echo "Already bootstrapped - nothing to do."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # npm package name rules: lowercase, only [a-z0-9-], no leading/trailing dash
+          SLUG=$(printf '%s' "$RAW_NAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9-]+/-/g; s/^-+//; s/-+$//')
+          SLUG=${SLUG:-app}
+          echo "Renaming next-template -> $SLUG"
+
+          # Every occurrence of the project name across the repo. `-staging`
+          # first so the plain replacement doesn't clip it.
+          #   package.json / package-lock.json : "name"        -> production Worker name
+          #   wrangler.jsonc                   : env.staging.name (+ its own kv)
+          #   src/app/page.tsx                 : placeholder <h1>
+          sed -i "s/next-template-staging/${SLUG}-staging/g" wrangler.jsonc
+          sed -i "s/\"name\": \"next-template\"/\"name\": \"${SLUG}\"/g" package.json package-lock.json wrangler.jsonc
+          sed -i "s/next-template/${SLUG}/g" src/app/page.tsx
+
+          sed -e "s/{{REPO_NAME}}/${RAW_NAME}/g" -e "s/{{SLUG}}/${SLUG}/g" \
+            .github/README.template.md > README.md
+          rm .github/README.template.md
+
+          git rm -q .github/workflows/template-bootstrap.yml
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Commit
+        if: steps.rewrite.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: bootstrap from next-template"
+          git push

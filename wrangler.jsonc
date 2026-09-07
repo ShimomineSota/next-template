@@ -21,4 +21,18 @@
       "id": "<your-kv-namespace-id>",
     },
   ],
+  // `develop` deploys here (CLOUDFLARE_ENV=staging via `npm run deploy -- --env
+  // staging`). Named environments are NOT merged with the top level, so this
+  // block repeats name + kv_namespaces with staging-specific values.
+  "env": {
+    "staging": {
+      "name": "next-template-staging",
+      "kv_namespaces": [
+        {
+          "binding": "VINEXT_KV_CACHE",
+          "id": "<your-staging-kv-namespace-id>",
+        },
+      ],
+    },
+  },
 }

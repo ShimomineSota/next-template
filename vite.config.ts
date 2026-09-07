@@ -11,7 +11,11 @@ import { imagesOptimizer } from "@vinext/cloudflare/images/images-optimizer";
 // present (plain dev/build never hits it) - vinext() alone is fine under
 // Vitest (verified: a throwaway test passed with only vinext() registered),
 // so only cloudflare() is skipped there; keeping vinext() means tests that
-// import next/* shims (next/image, next/link, ...) still resolve correctly.
+// import the next/image, next/link (etc.) shims still resolve correctly.
+// NOTE: never let a slash-then-star sequence appear anywhere in this file -
+// @vinext/cloudflare's deploy preflight scans the config as plain text and
+// misreads such a sequence as a block-comment open, which then hides the
+// cloudflare() plugin call below and aborts the deploy.
 const isVitest = !!process.env.VITEST;
 
 export default defineConfig({
