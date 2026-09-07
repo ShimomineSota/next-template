@@ -9,9 +9,8 @@ Click **Use this template**, then:
 1. **Bootstrap runs automatically.** On the first push to `main`, the
    `Template bootstrap` workflow rewrites every `next-template` /
    `next-template-staging` occurrence (`package.json`, `package-lock.json`,
-   `wrangler.jsonc`, `src/app/page.tsx`, this README) to your repo name and
-   commits it. Nothing to do by hand; after that the workflow is an inert
-   no-op and you can delete `.github/workflows/template-bootstrap.yml`.
+   `wrangler.jsonc`, `src/app/page.tsx`, this README) to your repo name,
+   commits it, and removes itself. Nothing to do by hand.
 
 2. **Create the KV cache namespaces** (data cache binding `VINEXT_KV_CACHE`)
    and paste each returned `id` into `wrangler.jsonc`:
