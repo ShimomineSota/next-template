@@ -1,9 +1,12 @@
 name: Template bootstrap
 
 # Runs once, on the first push after "Use this template", to replace the
-# `next-template` placeholder with the new repository name and then delete
-# itself. No-op on the template repo and on any already-bootstrapped repo, so
-# it is safe to leave enabled.
+# `next-template` placeholder with the new repository name.
+#
+# It does NOT delete itself: GITHUB_TOKEN is not allowed to push changes to
+# files under .github/workflows/, so a self-`git rm` would make the whole push
+# fail. Instead the job is a guarded no-op once package.json no longer contains
+# `"name": "next-template"` - safe to leave enabled, or delete by hand.
 
 on:
   push:
@@ -50,7 +53,6 @@ jobs:
             .github/README.template.md > README.md
           rm .github/README.template.md
 
-          git rm -q .github/workflows/template-bootstrap.yml
           echo "changed=true" >> "$GITHUB_OUTPUT"
 
       - name: Commit
