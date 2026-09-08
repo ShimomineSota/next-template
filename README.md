@@ -48,17 +48,20 @@ Click **Use this template**, then:
    Environments) — add protection rules / required reviewers here if wanted.
 
 6. **Enable deploys:** set repo variable `ENABLE_DEPLOY` to `true`. Until then
-   the `verify` job still runs on every PR/push; the deploy jobs are skipped.
+   CD still runs `verify` on every push; the deploy jobs are skipped.
 
 ## CI/CD
 
-`.github/workflows/ci.yml`:
+`verify` (check + test + build ×2) lives in a reusable workflow
+(`.github/workflows/verify.yml`) that both entry points call:
 
-| Trigger                             | Job                 | Result                                                      |
-| ----------------------------------- | ------------------- | ----------------------------------------------------------- |
-| every PR + push to `main`/`develop` | `verify`            | `npm run check` + `test` + `build` (production & staging)   |
-| push to `develop`                   | `deploy-staging`    | deploy to Worker `<name>-staging`, then sync Worker secrets |
-| push to `main`                      | `deploy-production` | deploy to Worker `<name>`, then sync Worker secrets         |
+| Workflow          | Trigger                                   | Does                                                                                                              |
+| ----------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| **CI** (`ci.yml`) | pull request                              | `verify`                                                                                                          |
+| **CD** (`cd.yml`) | push to `main` / `develop`, or manual run | `verify`, then deploy — `develop` → staging Worker, `main` → production Worker, each syncing Worker secrets after |
+
+Checks run once per commit — CI on the PR, CD on the merge/push — never twice.
+"Run workflow" on CD deploys whichever branch you launch it from.
 
 While `.env.*` hold the template's plaintext placeholders, dotenvx reads them
 without a key and CI needs no `DOTENV_PRIVATE_KEY_*` secrets. Once you run

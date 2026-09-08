@@ -1,0 +1,73 @@
+name: CD
+
+# Deploy. Runs verify first (via the reusable workflow), then deploys based on
+# the branch: develop -> staging Worker, main -> production Worker. Both deploy
+# jobs are gated on repo variable ENABLE_DEPLOY == 'true'.
+on:
+  push:
+    branches: [main, develop]
+  workflow_dispatch: # manual redeploy; target env follows the branch you run it from
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    uses: ./.github/workflows/verify.yml
+    secrets: inherit
+
+  deploy-staging:
+    # develop -> Cloudflare Worker "<name>-staging" (wrangler env.staging).
+    if: github.ref == 'refs/heads/develop' && vars.ENABLE_DEPLOY == 'true'
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: staging
+    concurrency:
+      group: deploy-staging
+      cancel-in-progress: false
+    env:
+      VP_GIT_HOOKS: "0"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      DOTENV_PRIVATE_KEY_STAGING: ${{ secrets.DOTENV_PRIVATE_KEY_STAGING }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - name: Build + deploy (staging)
+        run: npm run deploy:staging
+      - name: Sync Worker secrets (staging)
+        run: npm run cf:secrets:staging
+
+  deploy-production:
+    # main -> Cloudflare Worker "<name>" (wrangler top-level config).
+    if: github.ref == 'refs/heads/main' && vars.ENABLE_DEPLOY == 'true'
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    env:
+      VP_GIT_HOOKS: "0"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      DOTENV_PRIVATE_KEY_PRODUCTION: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - name: Build + deploy (production)
+        run: npm run deploy
+      - name: Sync Worker secrets (production)
+        run: npm run cf:secrets

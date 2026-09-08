@@ -30,16 +30,20 @@ Bootstrapped from [next-template](https://github.com/ShimomineSota/next-template
 
 4. **Create the `staging` and `production` Environments** (Settings → Environments).
 
-5. **Enable deploys:** set repo variable `ENABLE_DEPLOY` to `true`. Until then the
-   `verify` job still runs on every PR/push; the deploy jobs are skipped.
+5. **Enable deploys:** set repo variable `ENABLE_DEPLOY` to `true`. Until then CD
+   still runs `verify` on every push; the deploy jobs are skipped.
 
 ## CI/CD
 
-| Trigger                             | Job                 | Result                                          |
-| ----------------------------------- | ------------------- | ----------------------------------------------- |
-| every PR + push to `main`/`develop` | `verify`            | `check` + `test` + `build` (prod & staging)     |
-| push to `develop`                   | `deploy-staging`    | deploy Worker `{{SLUG}}-staging` + sync secrets |
-| push to `main`                      | `deploy-production` | deploy Worker `{{SLUG}}` + sync secrets         |
+`verify` (check + test + build ×2) is a reusable workflow (`verify.yml`) called
+by both entry points:
+
+| Workflow          | Trigger                            | Does                                                                                            |
+| ----------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------- |
+| **CI** (`ci.yml`) | pull request                       | `verify`                                                                                        |
+| **CD** (`cd.yml`) | push to `main` / `develop`, manual | `verify`, then deploy — `develop` → `{{SLUG}}-staging`, `main` → `{{SLUG}}`, sync secrets after |
+
+Checks run once per commit (CI on the PR, CD on the merge), never twice.
 
 ## Scripts
 

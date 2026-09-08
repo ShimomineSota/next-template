@@ -1,0 +1,45 @@
+name: Verify
+
+# Reusable check+test+build job. Called by ci.yml (on PRs) and cd.yml (before a
+# deploy) so the gate lives in exactly one place.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      # Skip the Vite+ git-hook dispatcher install that `npm ci` triggers via `prepare`.
+      VP_GIT_HOOKS: "0"
+      # The two build steps decrypt `.env.production` / `.env.staging`; once
+      # those hold real (encrypted) values these secrets must be set. While
+      # they're the template's plaintext placeholders, dotenvx reads them
+      # without a key and the secrets can stay empty. check/test skip env
+      # validation entirely. Fork PRs get no secrets, so their builds fail.
+      DOTENV_PRIVATE_KEY_PRODUCTION: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
+      DOTENV_PRIVATE_KEY_STAGING: ${{ secrets.DOTENV_PRIVATE_KEY_STAGING }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      # `prepare` runs `panda codegen`, generating the gitignored styled-system/ dir.
+      - run: npm ci
+
+      - name: Format + lint + typecheck
+        run: npm run check
+
+      - name: Test
+        run: npm run test
+
+      - name: Build (production)
+        run: npm run build
+
+      - name: Build (staging)
+        run: npm run build:staging
