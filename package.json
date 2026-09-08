@@ -14,7 +14,6 @@
     "cf:secrets": "dotenvx get -f .env.production -ek DOTENV_PUBLIC_KEY_PRODUCTION | wrangler secret bulk --config dist/server/wrangler.json",
     "cf:secrets:staging": "dotenvx get -f .env.staging -ek DOTENV_PUBLIC_KEY_STAGING | wrangler secret bulk --config dist/server/wrangler.json --env staging",
     "cf:devvars": "dotenvx decrypt -f .env.production --stdout > .dev.vars",
-    "env:init": "for e in development staging production; do [ -f .env.$e ] || sed \"s/=development$/=$e/\" .env.example > .env.$e; done && npm run env:encrypt",
     "env:encrypt": "dotenvx encrypt -f .env.development -f .env.staging -f .env.production",
     "typegen": "dotenvx run -f .env.development -- vp exec vinext typegen",
     "compat": "SKIP_ENV_VALIDATION=1 vp exec vinext check",

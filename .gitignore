@@ -1,9 +1,11 @@
 node_modules
-# Only .env.example is tracked by default. Commit the dotenvx-encrypted
-# per-env files with an explicit `git add -f` (the `.env*` staged guard blocks
-# them unless they're encrypted); after that they're tracked normally.
+# .env.{development,staging,production} are tracked (plaintext placeholders in
+# the template; the `.env*` pre-commit guard forces `npm run env:encrypt`
+# before real values can be committed). .env.keys / *.local never commit.
 .env*
-!.env.example
+!.env.development
+!.env.staging
+!.env.production
 .dev.vars*
 .next
 next-env.d.ts
