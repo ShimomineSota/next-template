@@ -24,26 +24,25 @@ Click **Use this template**, then:
    (needs _Workers Scripts: Edit_ + _Workers KV Storage: Edit_) and
    `CLOUDFLARE_ACCOUNT_ID`.
 
-3. **Re-key the env files.** `.env.development` / `.env.staging` /
-   `.env.production` are committed **encrypted** ([dotenvx](https://dotenvx.com/)),
-   but with the template's throwaway keypair you can't decrypt. Replace them
-   with your own values and re-encrypt:
+3. **Env vars.** `.env.development` / `.env.staging` / `.env.production` are
+   already committed with non-secret placeholder values, so `npm run dev`
+   works out of the box. When you add a real secret
+   (`npx dotenvx set API_KEY xxx -f .env.production`), the pre-commit guard
+   refuses the plaintext and tells you to run:
 
    ```
-   printf 'NEXT_PUBLIC_ENVIRONMENT=development\n' > .env.development
-   printf 'NEXT_PUBLIC_ENVIRONMENT=staging\n'     > .env.staging
-   printf 'NEXT_PUBLIC_ENVIRONMENT=production\n'  > .env.production
    npm run env:encrypt
    ```
 
-   This writes `.env.keys` (the private decryption keys). **`.env.keys` is
-   gitignored — never commit it.** Store it in a password manager; you need it
-   to run `npm run dev` / `build` locally.
+   That encrypts all three ([dotenvx](https://dotenvx.com/)) with a keypair
+   unique to your repo and writes `.env.keys`. **`.env.keys` is gitignored —
+   never commit it.** Store it in a password manager, and add the private keys
+   as repo secrets (next step).
 
 4. **Add repo secrets** (Settings → Secrets and variables → Actions):
-   `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and from `.env.keys`:
-   `DOTENV_PRIVATE_KEY_STAGING` + `DOTENV_PRIVATE_KEY_PRODUCTION` (CI only
-   decrypts for the staging/production builds; `_DEVELOPMENT` stays local).
+   `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and — once you've run
+   `env:encrypt` — from `.env.keys`: `DOTENV_PRIVATE_KEY_STAGING` +
+   `DOTENV_PRIVATE_KEY_PRODUCTION` (`_DEVELOPMENT` stays local).
 
 5. **Create the `staging` and `production` Environments** (Settings →
    Environments) — add protection rules / required reviewers here if wanted.
@@ -61,10 +60,12 @@ Click **Use this template**, then:
 | push to `develop`                   | `deploy-staging`    | deploy to Worker `<name>-staging`, then sync Worker secrets |
 | push to `main`                      | `deploy-production` | deploy to Worker `<name>`, then sync Worker secrets         |
 
-`verify` decrypts only for its two build steps, so it needs
-`DOTENV_PRIVATE_KEY_STAGING` + `_PRODUCTION` (check/test run with
-`SKIP_ENV_VALIDATION`). Deploy jobs also need `ENABLE_DEPLOY=true` + the two
-Cloudflare secrets. Fork PRs get no secrets and fail at the build step.
+While `.env.*` hold the template's plaintext placeholders, dotenvx reads them
+without a key and CI needs no `DOTENV_PRIVATE_KEY_*` secrets. Once you run
+`npm run env:encrypt`, `verify`'s two build steps need the `STAGING` +
+`PRODUCTION` private keys as secrets (check/test skip env validation); deploy
+jobs also need `ENABLE_DEPLOY=true` + the two Cloudflare secrets. Fork PRs get
+no secrets and fail at the build step.
 
 ## Scripts
 
@@ -74,7 +75,7 @@ Cloudflare secrets. Fork PRs get no secrets and fail at the build step.
 - `npm run start` previews the built Worker locally with `wrangler dev` (regenerates `.dev.vars`).
 - `npm run deploy` / `npm run deploy:staging` build and deploy to Cloudflare Workers.
 - `npm run cf:secrets` / `npm run cf:secrets:staging` push the env file's vars to the deployed Worker as secrets (CI runs these after each deploy).
-- `npm run env:encrypt` encrypts the three `.env.*` files in place (creates `.env.keys` on first run).
+- `npm run env:encrypt` encrypts the three `.env.*` files in place (run it once you add a real secret).
 - `npm run check` runs format + lint + typecheck (via Vite+/`vp`).
 - `npm run lint` runs Oxlint on its own. The `lint` block in `vite.config.ts` enables the React, React Hooks, Next.js, and jsx-a11y plugins so coverage matches `eslint-config-next` (`next/core-web-vitals` + `next/typescript`), plus type-aware rules via tsgolint.
 - `npm run test` runs the unit tests.
@@ -83,28 +84,31 @@ Cloudflare secrets. Fork PRs get no secrets and fail at the build step.
 
 ## Environment variables
 
-Per-environment config lives in `.env.development` / `.env.staging` /
-`.env.production` at the repo root, **encrypted with
-[dotenvx](https://dotenvx.com/) and committed** (values are ciphertext; the
-`.env.keys` private keys are gitignored). Schema + validation is in
+`.env.development` / `.env.staging` / `.env.production` (repo root) hold each
+environment's config and are committed. The template ships them **plaintext**
+with non-secret placeholders; add a real secret and the pre-commit guard forces
+`npm run env:encrypt`, which encrypts all three with [dotenvx](https://dotenvx.com/)
+using a repo-unique keypair (`.env.keys`, gitignored). Schema + validation is in
 [`src/env.ts`](src/env.ts) (`@t3-oss/env-nextjs` + valibot).
 
-- **Edit a value:** `npx dotenvx set NEXT_PUBLIC_FOO bar -f .env.staging`
-  (repeat per environment). Or `npx dotenvx decrypt -f .env.staging`, edit,
-  `npx dotenvx encrypt -f .env.staging`.
+- **Add / edit a value:** `npx dotenvx set KEY value -f .env.<env>` for each of
+  the three (dotenvx `set` encrypts in place once the file is encrypted). Or
+  `npx dotenvx decrypt -f .env.staging`, edit, `npx dotenvx encrypt -f .env.staging`.
 - **All three files must carry the same keys** — differ in value only.
   `build:staging` still runs in vinext's `production` mode and reads
-  `.env.production` (as ciphertext) for any key `dotenvx run` didn't already
-  set, so a key missing from one file leaks an `encrypted:…` string.
+  `.env.production` for any key `dotenvx run` didn't already set, so a key
+  missing from one file leaks its raw (possibly `encrypted:…`) string.
 - **`dev` / `build` / `start` / `deploy` / `typegen`** wrap their command in
-  `dotenvx run -f .env.<env>` (decrypts with `.env.keys` locally or
-  `DOTENV_PRIVATE_KEY_<ENV>` in CI). `next.config.ts` does `import "@/env"`, so
-  config load validates the decrypted values against [`src/env.ts`](src/env.ts).
-- **`check` / `fmt` / `lint` / `test`** don't decrypt — they run with
-  `SKIP_ENV_VALIDATION=1` (env validation isn't their job, and `build` still
-  does it). So linting / testing / committing needs no keys.
-- **Commit guard:** the `.env*` entry in `staged` (`vite.config.ts`) runs
-  `dotenvx ext precommit`, rejecting any staged plaintext `.env` file.
+  `dotenvx run -f .env.<env>` (reads plaintext, or decrypts with `.env.keys`
+  locally / `DOTENV_PRIVATE_KEY_<ENV>` in CI). `next.config.ts` does
+  `import "@/env"`, so config load validates the values against
+  [`src/env.ts`](src/env.ts).
+- **`check` / `fmt` / `lint` / `test`** run with `SKIP_ENV_VALIDATION=1` — env
+  validation isn't their job, and `build` still does it. Linting / testing /
+  committing needs no keys.
+- **Commit guard:** `".env*": "dotenvx ext precommit ."` in `staged`
+  (`vite.config.ts`) rejects any staged plaintext `.env` file — this is what
+  forces `npm run env:encrypt` once real values go in.
 - **Cloudflare Worker runtime:** `dotenvx` only touches the local build process.
   `npm run cf:secrets[:staging]` pushes every var (public ones included, so
   server code can read them off `process.env`) to the deployed Worker via

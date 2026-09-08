@@ -18,9 +18,11 @@ jobs:
     env:
       # Skip the Vite+ git-hook dispatcher install that `npm ci` triggers via `prepare`.
       VP_GIT_HOOKS: "0"
-      # Only the two build steps decrypt (`.env.production` / `.env.staging`);
-      # check/test run with SKIP_ENV_VALIDATION and need no key. Same-repo
-      # pushes/PRs get these secrets; fork PRs don't, so their builds fail.
+      # The two build steps decrypt `.env.production` / `.env.staging`; once
+      # those hold real (encrypted) values these secrets must be set. While
+      # they're the template's plaintext placeholders, dotenvx reads them
+      # without a key and the secrets can stay empty. check/test skip env
+      # validation entirely. Fork PRs get no secrets, so their builds fail.
       DOTENV_PRIVATE_KEY_PRODUCTION: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
       DOTENV_PRIVATE_KEY_STAGING: ${{ secrets.DOTENV_PRIVATE_KEY_STAGING }}
     steps:

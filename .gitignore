@@ -1,7 +1,8 @@
 node_modules
-# dotenvx-encrypted env files ARE committed; keys and *.local overrides are not.
+# .env.{development,staging,production} are tracked (plaintext placeholders in
+# the template; the `.env*` pre-commit guard forces `npm run env:encrypt`
+# before real values can be committed). .env.keys / *.local never commit.
 .env*
-!.env
 !.env.development
 !.env.staging
 !.env.production
