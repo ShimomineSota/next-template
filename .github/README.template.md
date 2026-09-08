@@ -17,14 +17,16 @@ Bootstrapped from [next-template](https://github.com/ShimomineSota/next-template
    Auth first with `npx wrangler login`, or by exporting `CLOUDFLARE_API_TOKEN`
    (_Workers Scripts: Edit_ + _Workers KV Storage: Edit_) and `CLOUDFLARE_ACCOUNT_ID`.
 
-2. **Encrypt the env files:** `npm run env:encrypt` encrypts
-   `.env.development` / `.env.staging` / `.env.production` in place and writes
-   `.env.keys` (gitignored — store it in a password manager, never commit).
+2. **Create the env files:** `npm run env:init` seeds
+   `.env.development` / `.env.staging` / `.env.production` from `.env.example`,
+   encrypts them, and writes `.env.keys` (gitignored — store it in a password
+   manager, never commit). Then
+   `git add -f .env.development .env.staging .env.production` and commit.
 
 3. **Add repo secrets** (Settings → Secrets and variables → Actions):
    `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and from `.env.keys`:
-   `DOTENV_PRIVATE_KEY_DEVELOPMENT`, `DOTENV_PRIVATE_KEY_STAGING`,
-   `DOTENV_PRIVATE_KEY_PRODUCTION`.
+   `DOTENV_PRIVATE_KEY_STAGING` + `DOTENV_PRIVATE_KEY_PRODUCTION`
+   (`_DEVELOPMENT` stays local).
 
 4. **Create the `staging` and `production` Environments** (Settings → Environments).
 
@@ -46,7 +48,8 @@ Bootstrapped from [next-template](https://github.com/ShimomineSota/next-template
 - `npm run start` — preview the built Worker locally with `wrangler dev`
 - `npm run deploy` / `deploy:staging` — build + deploy to Cloudflare Workers
 - `npm run cf:secrets` / `cf:secrets:staging` — push env vars to the deployed Worker
-- `npm run env:encrypt` — (re-)encrypt the three `.env.*` files
+- `npm run env:init` — seed `.env.*` from `.env.example` and encrypt
+- `npm run env:encrypt` — re-encrypt the three `.env.*` files
 - `npm run check` — format + lint + typecheck (Vite+/`vp`)
 - `npm run test` — unit tests
 - `npm run typegen` — App Router route helper types
@@ -54,13 +57,15 @@ Bootstrapped from [next-template](https://github.com/ShimomineSota/next-template
 
 ## Environment variables
 
-`.env.development` / `.env.staging` / `.env.production` are encrypted with
-[dotenvx](https://dotenvx.com/) and committed; `.env.keys` is gitignored.
-Schema in [`src/env.ts`](src/env.ts). Edit with
-`npx dotenvx set KEY value -f .env.<env>` (per environment — all three files
-must carry the same keys). Every `npm run` script decrypts via `dotenvx run`;
-CI uses the `DOTENV_PRIVATE_KEY_*` secrets. `npm run cf:secrets*` bridges the
-values into the deployed Worker runtime.
+`.env.example` (plaintext) is the key list; `npm run env:init` turns it into
+`.env.development` / `.env.staging` / `.env.production`, encrypted with
+[dotenvx](https://dotenvx.com/) and committed (`.env.keys` gitignored).
+Schema in [`src/env.ts`](src/env.ts). Add a key to `.env.example` then
+`npx dotenvx set KEY value -f .env.<env>` per environment (all three must carry
+the same keys). `dev` / `build` / `deploy` decrypt via `dotenvx run`
+(`DOTENV_PRIVATE_KEY_*` secrets in CI); `check` / `test` run with
+`SKIP_ENV_VALIDATION`. `npm run cf:secrets*` pushes the values into the
+deployed Worker runtime.
 
 ## Notes
 

@@ -19,8 +19,11 @@ jobs:
       # Skip the Vite+ git-hook dispatcher install that `npm ci` triggers via `prepare`.
       VP_GIT_HOOKS: "0"
       # Only the two build steps decrypt (`.env.production` / `.env.staging`);
-      # check/test run with SKIP_ENV_VALIDATION and need no key. Same-repo
-      # pushes/PRs get these secrets; fork PRs don't, so their builds fail.
+      # check/test run with SKIP_ENV_VALIDATION and need no key. A project that
+      # committed its encrypted .env files needs these secrets set (fork PRs
+      # can't, so their builds fail); the bare template has no committed .env
+      # files, so `env:init` below mints a throwaway keypair and no secret is
+      # needed until you commit real values.
       DOTENV_PRIVATE_KEY_PRODUCTION: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
       DOTENV_PRIVATE_KEY_STAGING: ${{ secrets.DOTENV_PRIVATE_KEY_STAGING }}
     steps:
@@ -33,6 +36,11 @@ jobs:
 
       # `prepare` runs `panda codegen`, generating the gitignored styled-system/ dir.
       - run: npm ci
+
+      # No-op once .env.{development,staging,production} are committed; on the
+      # bare template it seeds them from .env.example and encrypts locally.
+      - name: Provision env files
+        run: npm run env:init
 
       - name: Format + lint + typecheck
         run: npm run check
@@ -68,6 +76,8 @@ jobs:
           node-version-file: .node-version
           cache: npm
       - run: npm ci
+      - name: Provision env files
+        run: npm run env:init
       - name: Build + deploy (staging)
         run: npm run deploy:staging
       - name: Sync Worker secrets (staging)
@@ -95,6 +105,8 @@ jobs:
           node-version-file: .node-version
           cache: npm
       - run: npm ci
+      - name: Provision env files
+        run: npm run env:init
       - name: Build + deploy (production)
         run: npm run deploy
       - name: Sync Worker secrets (production)
