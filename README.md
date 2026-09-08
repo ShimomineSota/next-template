@@ -24,48 +24,102 @@ Click **Use this template**, then:
    (needs _Workers Scripts: Edit_ + _Workers KV Storage: Edit_) and
    `CLOUDFLARE_ACCOUNT_ID`.
 
-3. **Add repo secrets** `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`
-   (Settings → Secrets and variables → Actions).
+3. **Re-key the env files.** `.env.development` / `.env.staging` /
+   `.env.production` are committed **encrypted** ([dotenvx](https://dotenvx.com/)),
+   but with the template's throwaway keypair you can't decrypt. Replace them
+   with your own values and re-encrypt:
 
-4. **Create the `staging` and `production` Environments** (Settings →
+   ```
+   printf 'NEXT_PUBLIC_ENVIRONMENT=development\n' > .env.development
+   printf 'NEXT_PUBLIC_ENVIRONMENT=staging\n'     > .env.staging
+   printf 'NEXT_PUBLIC_ENVIRONMENT=production\n'  > .env.production
+   npm run env:encrypt
+   ```
+
+   This writes `.env.keys` (the private decryption keys). **`.env.keys` is
+   gitignored — never commit it.** Store it in a password manager; you need it
+   to run `npm run dev` / `build` locally.
+
+4. **Add repo secrets** (Settings → Secrets and variables → Actions):
+   `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and from `.env.keys`:
+   `DOTENV_PRIVATE_KEY_STAGING` + `DOTENV_PRIVATE_KEY_PRODUCTION` (CI only
+   decrypts for the staging/production builds; `_DEVELOPMENT` stays local).
+
+5. **Create the `staging` and `production` Environments** (Settings →
    Environments) — add protection rules / required reviewers here if wanted.
 
-5. **Enable deploys:** set repo variable `ENABLE_DEPLOY` to `true`. Until then
+6. **Enable deploys:** set repo variable `ENABLE_DEPLOY` to `true`. Until then
    the `verify` job still runs on every PR/push; the deploy jobs are skipped.
 
 ## CI/CD
 
 `.github/workflows/ci.yml`:
 
-| Trigger                             | Job                 | Result                                                       |
-| ----------------------------------- | ------------------- | ------------------------------------------------------------ |
-| every PR + push to `main`/`develop` | `verify`            | `npm run check` + `test` + `build`                           |
-| push to `develop`                   | `deploy-staging`    | deploy to Worker `<name>-staging` (`wrangler --env staging`) |
-| push to `main`                      | `deploy-production` | deploy to Worker `<name>`                                    |
+| Trigger                             | Job                 | Result                                                      |
+| ----------------------------------- | ------------------- | ----------------------------------------------------------- |
+| every PR + push to `main`/`develop` | `verify`            | `npm run check` + `test` + `build` (production & staging)   |
+| push to `develop`                   | `deploy-staging`    | deploy to Worker `<name>-staging`, then sync Worker secrets |
+| push to `main`                      | `deploy-production` | deploy to Worker `<name>`, then sync Worker secrets         |
 
-Deploy jobs require `ENABLE_DEPLOY=true` and the two Cloudflare secrets.
+`verify` decrypts only for its two build steps, so it needs
+`DOTENV_PRIVATE_KEY_STAGING` + `_PRODUCTION` (check/test run with
+`SKIP_ENV_VALIDATION`). Deploy jobs also need `ENABLE_DEPLOY=true` + the two
+Cloudflare secrets. Fork PRs get no secrets and fail at the build step.
 
 ## Scripts
 
-- `npm run dev` starts the vinext dev server.
-- `npm run build` builds the Worker + static assets into `dist/`.
-- `npm run start` previews the built Worker locally with `wrangler dev`.
-- `npm run deploy` builds and deploys to Cloudflare Workers via `wrangler`.
+- `npm run dev` starts the vinext dev server (loads `.env.development`).
+- `npm run build` builds the Worker + static assets into `dist/` (`.env.production`).
+- `npm run build:staging` builds with `.env.staging` values.
+- `npm run start` previews the built Worker locally with `wrangler dev` (regenerates `.dev.vars`).
+- `npm run deploy` / `npm run deploy:staging` build and deploy to Cloudflare Workers.
+- `npm run cf:secrets` / `npm run cf:secrets:staging` push the env file's vars to the deployed Worker as secrets (CI runs these after each deploy).
+- `npm run env:encrypt` encrypts the three `.env.*` files in place (creates `.env.keys` on first run).
 - `npm run check` runs format + lint + typecheck (via Vite+/`vp`).
 - `npm run lint` runs Oxlint on its own. The `lint` block in `vite.config.ts` enables the React, React Hooks, Next.js, and jsx-a11y plugins so coverage matches `eslint-config-next` (`next/core-web-vitals` + `next/typescript`), plus type-aware rules via tsgolint.
 - `npm run test` runs the unit tests.
 - `npm run typegen` generates App Router route helper types.
 - `npm run compat` scans for Next.js API compatibility gaps.
 
+## Environment variables
+
+Per-environment config lives in `.env.development` / `.env.staging` /
+`.env.production` at the repo root, **encrypted with
+[dotenvx](https://dotenvx.com/) and committed** (values are ciphertext; the
+`.env.keys` private keys are gitignored). Schema + validation is in
+[`src/env.ts`](src/env.ts) (`@t3-oss/env-nextjs` + valibot).
+
+- **Edit a value:** `npx dotenvx set NEXT_PUBLIC_FOO bar -f .env.staging`
+  (repeat per environment). Or `npx dotenvx decrypt -f .env.staging`, edit,
+  `npx dotenvx encrypt -f .env.staging`.
+- **All three files must carry the same keys** — differ in value only.
+  `build:staging` still runs in vinext's `production` mode and reads
+  `.env.production` (as ciphertext) for any key `dotenvx run` didn't already
+  set, so a key missing from one file leaks an `encrypted:…` string.
+- **`dev` / `build` / `start` / `deploy` / `typegen`** wrap their command in
+  `dotenvx run -f .env.<env>` (decrypts with `.env.keys` locally or
+  `DOTENV_PRIVATE_KEY_<ENV>` in CI). `next.config.ts` does `import "@/env"`, so
+  config load validates the decrypted values against [`src/env.ts`](src/env.ts).
+- **`check` / `fmt` / `lint` / `test`** don't decrypt — they run with
+  `SKIP_ENV_VALIDATION=1` (env validation isn't their job, and `build` still
+  does it). So linting / testing / committing needs no keys.
+- **Commit guard:** the `.env*` entry in `staged` (`vite.config.ts`) runs
+  `dotenvx ext precommit`, rejecting any staged plaintext `.env` file.
+- **Cloudflare Worker runtime:** `dotenvx` only touches the local build process.
+  `npm run cf:secrets[:staging]` pushes every var (public ones included, so
+  server code can read them off `process.env`) to the deployed Worker via
+  `wrangler secret bulk`; CI runs it after each deploy. Local `npm run start`
+  regenerates `.dev.vars` from `.env.production` first.
+
 ## Deploying
 
-Cloudflare setup (cache, image optimization, KV) lives in `wrangler.jsonc` and the `vinext()`/`cloudflare()` plugins in `vite.config.ts`. `wrangler.jsonc` holds the top-level (production) config plus an `env.staging` block; `npm run deploy -- --env staging` builds it with `CLOUDFLARE_ENV=staging`. Named environments do **not** inherit `kv_namespaces` / `vars` / `routes`, so staging carries its own `name` + KV.
+Cloudflare setup (cache, image optimization, KV) lives in `wrangler.jsonc` and the `vinext()`/`cloudflare()` plugins in `vite.config.ts`. `wrangler.jsonc` holds the top-level (production) config plus an `env.staging` block; `npm run deploy:staging` builds it with `CLOUDFLARE_ENV=staging`. Named environments do **not** inherit `kv_namespaces` / `vars` / `routes`, so staging carries its own `name` + KV.
 
 > **Note:** never let a `/` immediately followed by `*` appear in `vite.config.ts` above the `cloudflare()` call — `@vinext/cloudflare`'s deploy preflight scans the config as text and misreads it as a block-comment open, hiding the plugin and aborting the deploy.
 
 Deploy manually with:
 
 ```
-npm run deploy                 # production
-npm run deploy -- --env staging # staging
+npm run deploy          # production
+npm run deploy:staging  # staging
 ```

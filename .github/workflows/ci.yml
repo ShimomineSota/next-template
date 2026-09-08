@@ -18,6 +18,11 @@ jobs:
     env:
       # Skip the Vite+ git-hook dispatcher install that `npm ci` triggers via `prepare`.
       VP_GIT_HOOKS: "0"
+      # Only the two build steps decrypt (`.env.production` / `.env.staging`);
+      # check/test run with SKIP_ENV_VALIDATION and need no key. Same-repo
+      # pushes/PRs get these secrets; fork PRs don't, so their builds fail.
+      DOTENV_PRIVATE_KEY_PRODUCTION: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
+      DOTENV_PRIVATE_KEY_STAGING: ${{ secrets.DOTENV_PRIVATE_KEY_STAGING }}
     steps:
       - uses: actions/checkout@v4
 
@@ -35,8 +40,11 @@ jobs:
       - name: Test
         run: npm run test
 
-      - name: Build
+      - name: Build (production)
         run: npm run build
+
+      - name: Build (staging)
+        run: npm run build:staging
 
   deploy-staging:
     # develop -> Cloudflare Worker "next-template-staging" (wrangler env.staging).
@@ -52,6 +60,7 @@ jobs:
       VP_GIT_HOOKS: "0"
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      DOTENV_PRIVATE_KEY_STAGING: ${{ secrets.DOTENV_PRIVATE_KEY_STAGING }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -60,7 +69,9 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Build + deploy (staging)
-        run: npm run deploy -- --env staging
+        run: npm run deploy:staging
+      - name: Sync Worker secrets (staging)
+        run: npm run cf:secrets:staging
 
   deploy-production:
     # main -> Cloudflare Worker "next-template" (wrangler top-level config).
@@ -76,6 +87,7 @@ jobs:
       VP_GIT_HOOKS: "0"
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      DOTENV_PRIVATE_KEY_PRODUCTION: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -85,3 +97,5 @@ jobs:
       - run: npm ci
       - name: Build + deploy (production)
         run: npm run deploy
+      - name: Sync Worker secrets (production)
+        run: npm run cf:secrets

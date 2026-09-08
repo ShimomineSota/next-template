@@ -81,11 +81,21 @@ export default defineConfig({
     // No test files exist yet; without this, Vitest (and the pre-push
     // `vp test run` hook) exits with code 1 on "No test files found".
     passWithNoTests: true,
+    // Test mode: vinext loads only `.env.test` / `.env` (never the encrypted
+    // `.env.{development,staging,production}`), so `NEXT_PUBLIC_ENVIRONMENT`
+    // falls back to its `src/env.ts` default. When a test needs specific env
+    // values, set them here (non-secret) rather than adding a `.env.test`
+    // file (the `.env*` commit guard would reject a plaintext one):
+    //   env: { NEXT_PUBLIC_ENVIRONMENT: "development" },
   },
   staged: {
     // lint + format + per-file typecheck
     "*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}": "vp check --fix",
     // Oxfmt also formats these; no lint/typecheck to run
     "*.{json,jsonc,css,md,mdx,yml,yaml}": "vp fmt",
+    // Block committing a plaintext .env file (dotenvx-encrypted / gitignored only).
+    // The trailing `.` is the scan dir; `vp staged` appends the matched filenames
+    // after it (ignored), and `precommit` runs its own git-staged scan.
+    ".env*": "dotenvx ext precommit .",
   },
 });

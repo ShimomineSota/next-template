@@ -1,1 +1,1 @@
-vp staged
+SKIP_ENV_VALIDATION=1 vp staged

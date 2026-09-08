@@ -17,32 +17,50 @@ Bootstrapped from [next-template](https://github.com/ShimomineSota/next-template
    Auth first with `npx wrangler login`, or by exporting `CLOUDFLARE_API_TOKEN`
    (_Workers Scripts: Edit_ + _Workers KV Storage: Edit_) and `CLOUDFLARE_ACCOUNT_ID`.
 
-2. **Add repo secrets** `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`
-   (Settings → Secrets and variables → Actions).
+2. **Encrypt the env files:** `npm run env:encrypt` encrypts
+   `.env.development` / `.env.staging` / `.env.production` in place and writes
+   `.env.keys` (gitignored — store it in a password manager, never commit).
 
-3. **Create the `staging` and `production` Environments** (Settings → Environments).
+3. **Add repo secrets** (Settings → Secrets and variables → Actions):
+   `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and from `.env.keys`:
+   `DOTENV_PRIVATE_KEY_DEVELOPMENT`, `DOTENV_PRIVATE_KEY_STAGING`,
+   `DOTENV_PRIVATE_KEY_PRODUCTION`.
 
-4. **Enable deploys:** set repo variable `ENABLE_DEPLOY` to `true`. Until then the
+4. **Create the `staging` and `production` Environments** (Settings → Environments).
+
+5. **Enable deploys:** set repo variable `ENABLE_DEPLOY` to `true`. Until then the
    `verify` job still runs on every PR/push; the deploy jobs are skipped.
 
 ## CI/CD
 
-| Trigger                             | Job                 | Result                              |
-| ----------------------------------- | ------------------- | ----------------------------------- |
-| every PR + push to `main`/`develop` | `verify`            | `npm run check` + `test` + `build`  |
-| push to `develop`                   | `deploy-staging`    | deploy to Worker `{{SLUG}}-staging` |
-| push to `main`                      | `deploy-production` | deploy to Worker `{{SLUG}}`         |
+| Trigger                             | Job                 | Result                                          |
+| ----------------------------------- | ------------------- | ----------------------------------------------- |
+| every PR + push to `main`/`develop` | `verify`            | `check` + `test` + `build` (prod & staging)     |
+| push to `develop`                   | `deploy-staging`    | deploy Worker `{{SLUG}}-staging` + sync secrets |
+| push to `main`                      | `deploy-production` | deploy Worker `{{SLUG}}` + sync secrets         |
 
 ## Scripts
 
-- `npm run dev` — vinext dev server
-- `npm run build` — build the Worker + static assets into `dist/`
+- `npm run dev` — vinext dev server (`.env.development`)
+- `npm run build` / `build:staging` — build the Worker + static assets into `dist/`
 - `npm run start` — preview the built Worker locally with `wrangler dev`
-- `npm run deploy` — build + deploy to Cloudflare Workers (`-- --env staging` for staging)
+- `npm run deploy` / `deploy:staging` — build + deploy to Cloudflare Workers
+- `npm run cf:secrets` / `cf:secrets:staging` — push env vars to the deployed Worker
+- `npm run env:encrypt` — (re-)encrypt the three `.env.*` files
 - `npm run check` — format + lint + typecheck (Vite+/`vp`)
 - `npm run test` — unit tests
 - `npm run typegen` — App Router route helper types
 - `npm run compat` — scan for Next.js API compatibility gaps
+
+## Environment variables
+
+`.env.development` / `.env.staging` / `.env.production` are encrypted with
+[dotenvx](https://dotenvx.com/) and committed; `.env.keys` is gitignored.
+Schema in [`src/env.ts`](src/env.ts). Edit with
+`npx dotenvx set KEY value -f .env.<env>` (per environment — all three files
+must carry the same keys). Every `npm run` script decrypts via `dotenvx run`;
+CI uses the `DOTENV_PRIVATE_KEY_*` secrets. `npm run cf:secrets*` bridges the
+values into the deployed Worker runtime.
 
 ## Notes
 

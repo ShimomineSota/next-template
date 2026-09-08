@@ -1,5 +1,11 @@
 node_modules
+# dotenvx-encrypted env files ARE committed; keys and *.local overrides are not.
 .env*
+!.env
+!.env.development
+!.env.staging
+!.env.production
+.dev.vars*
 .next
 next-env.d.ts
 /dist/
