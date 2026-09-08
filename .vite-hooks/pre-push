@@ -1,2 +1,2 @@
-vp check
-vp test run
+SKIP_ENV_VALIDATION=1 vp check
+SKIP_ENV_VALIDATION=1 vp test run
