@@ -48,27 +48,26 @@ Click **Use this template**, then:
    Environments) — add protection rules / required reviewers here if wanted.
 
 6. **Enable deploys:** set repo variable `ENABLE_DEPLOY` to `true`. Until then
-   CD still runs `verify` on every push; the deploy jobs are skipped.
+   CD is a no-op on every push.
 
 ## CI/CD
 
-`verify` (check + test + build ×2) lives in a reusable workflow
-(`.github/workflows/verify.yml`) that both entry points call:
+There's no CI workflow. Format, lint, typecheck and tests run locally on the
+**pre-push** git hook ([`.vite-hooks/pre-push`](.vite-hooks/pre-push):
+`vp check` + `vp test run`); `vp staged` runs on **pre-commit**.
 
-| Workflow          | Trigger                                   | Does                                                                                                              |
-| ----------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| **CI** (`ci.yml`) | pull request                              | `verify`                                                                                                          |
-| **CD** (`cd.yml`) | push to `main` / `develop`, or manual run | `verify`, then deploy — `develop` → staging Worker, `main` → production Worker, each syncing Worker secrets after |
+**CD** (`.github/workflows/cd.yml`) — push to `main` / `develop`, or a manual
+"Run workflow" — deploys: `develop` → staging Worker, `main` → production
+Worker, each running `npm run cf:secrets*` to sync Worker secrets after.
+`npm run deploy*` runs a production build first, so a broken build fails the
+deploy. "Run workflow" deploys whichever branch you launch it from.
 
-Checks run once per commit — CI on the PR, CD on the merge/push — never twice.
-"Run workflow" on CD deploys whichever branch you launch it from.
-
-While `.env.*` hold the template's plaintext placeholders, dotenvx reads them
-without a key and CI needs no `DOTENV_PRIVATE_KEY_*` secrets. Once you run
-`npm run env:encrypt`, `verify`'s two build steps need the `STAGING` +
-`PRODUCTION` private keys as secrets (check/test skip env validation); deploy
-jobs also need `ENABLE_DEPLOY=true` + the two Cloudflare secrets. Fork PRs get
-no secrets and fail at the build step.
+Deploy jobs are gated on `ENABLE_DEPLOY == 'true'` — until that's set, the
+workflow does nothing. Once enabled they need `CLOUDFLARE_API_TOKEN` +
+`CLOUDFLARE_ACCOUNT_ID`, and — after `npm run env:encrypt` — the `STAGING` +
+`PRODUCTION` private keys as secrets so the build can decrypt `.env.*`. While
+`.env.*` hold the template's plaintext placeholders, dotenvx reads them without
+a key.
 
 ## Scripts
 
@@ -77,7 +76,7 @@ no secrets and fail at the build step.
 - `npm run build:staging` builds with `.env.staging` values.
 - `npm run start` previews the built Worker locally with `wrangler dev` (regenerates `.dev.vars`).
 - `npm run deploy` / `npm run deploy:staging` build and deploy to Cloudflare Workers.
-- `npm run cf:secrets` / `npm run cf:secrets:staging` push the env file's vars to the deployed Worker as secrets (CI runs these after each deploy).
+- `npm run cf:secrets` / `npm run cf:secrets:staging` push the env file's vars to the deployed Worker as secrets (CD runs these after each deploy).
 - `npm run env:encrypt` encrypts the three `.env.*` files in place (run it once you add a real secret).
 - `npm run check` runs format + lint + typecheck (via Vite+/`vp`).
 - `npm run lint` runs Oxlint on its own. The `lint` block in `vite.config.ts` enables the React, React Hooks, Next.js, and jsx-a11y plugins so coverage matches `eslint-config-next` (`next/core-web-vitals` + `next/typescript`), plus type-aware rules via tsgolint.
@@ -103,7 +102,7 @@ using a repo-unique keypair (`.env.keys`, gitignored). Schema + validation is in
   missing from one file leaks its raw (possibly `encrypted:…`) string.
 - **`dev` / `build` / `start` / `deploy` / `typegen`** wrap their command in
   `dotenvx run -f .env.<env>` (reads plaintext, or decrypts with `.env.keys`
-  locally / `DOTENV_PRIVATE_KEY_<ENV>` in CI). `next.config.ts` does
+  locally / `DOTENV_PRIVATE_KEY_<ENV>` in CD). `next.config.ts` does
   `import "@/env"`, so config load validates the values against
   [`src/env.ts`](src/env.ts).
 - **`check` / `fmt` / `lint` / `test`** run with `SKIP_ENV_VALIDATION=1` — env
@@ -115,7 +114,7 @@ using a repo-unique keypair (`.env.keys`, gitignored). Schema + validation is in
 - **Cloudflare Worker runtime:** `dotenvx` only touches the local build process.
   `npm run cf:secrets[:staging]` pushes every var (public ones included, so
   server code can read them off `process.env`) to the deployed Worker via
-  `wrangler secret bulk`; CI runs it after each deploy. Local `npm run start`
+  `wrangler secret bulk`; CD runs it after each deploy. Local `npm run start`
   regenerates `.dev.vars` from `.env.production` first.
 
 ## Deploying

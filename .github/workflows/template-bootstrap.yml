@@ -43,13 +43,10 @@ jobs:
           #   package.json / package-lock.json : "name"        -> production Worker name
           #   wrangler.jsonc                   : env.staging.name (+ its own kv)
           #   src/app/page.tsx                 : placeholder <h1>
-          sed -i "s/next-template-staging/${SLUG}-staging/g" wrangler.jsonc
+          #   README.md                        : title + prose
+          sed -i "s/next-template-staging/${SLUG}-staging/g" wrangler.jsonc README.md
           sed -i "s/\"name\": \"next-template\"/\"name\": \"${SLUG}\"/g" package.json package-lock.json wrangler.jsonc
-          sed -i "s/next-template/${SLUG}/g" src/app/page.tsx
-
-          sed -e "s/{{REPO_NAME}}/${RAW_NAME}/g" -e "s/{{SLUG}}/${SLUG}/g" \
-            .github/README.template.md > README.md
-          rm .github/README.template.md
+          sed -i "s/next-template/${SLUG}/g" src/app/page.tsx README.md
 
           git rm -q .github/workflows/template-bootstrap.yml
           echo "changed=true" >> "$GITHUB_OUTPUT"

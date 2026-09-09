@@ -1,8 +1,10 @@
 name: CD
 
-# Deploy. Runs verify first (via the reusable workflow), then deploys based on
-# the branch: develop -> staging Worker, main -> production Worker. Both deploy
-# jobs are gated on repo variable ENABLE_DEPLOY == 'true'.
+# Deploy. develop -> staging Worker, main -> production Worker. Both deploy jobs
+# are gated on repo variable ENABLE_DEPLOY == 'true'. No separate verify step:
+# `npm run deploy*` runs a production build first (a broken build fails the
+# deploy), and format/lint/typecheck/test run locally on the pre-push hook
+# (.vite-hooks/pre-push).
 on:
   push:
     branches: [main, develop]
@@ -16,14 +18,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  verify:
-    uses: ./.github/workflows/verify.yml
-    secrets: inherit
-
   deploy-staging:
     # develop -> Cloudflare Worker "<name>-staging" (wrangler env.staging).
     if: github.ref == 'refs/heads/develop' && vars.ENABLE_DEPLOY == 'true'
-    needs: verify
     runs-on: ubuntu-latest
     environment: staging
     concurrency:
@@ -49,7 +46,6 @@ jobs:
   deploy-production:
     # main -> Cloudflare Worker "<name>" (wrangler top-level config).
     if: github.ref == 'refs/heads/main' && vars.ENABLE_DEPLOY == 'true'
-    needs: verify
     runs-on: ubuntu-latest
     environment: production
     concurrency:
