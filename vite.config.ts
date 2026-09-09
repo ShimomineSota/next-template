@@ -92,7 +92,7 @@ export default defineConfig({
     // lint + format + per-file typecheck
     "*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}": "vp check --fix",
     // Oxfmt also formats these; no lint/typecheck to run
-    "*.{json,jsonc,css,md,mdx,yml,yaml}": "vp fmt",
+    "*.{json,jsonc,css,md,mdx,yml,yaml}": "vp fmt --no-error-on-unmatched-pattern",
     // Block committing a plaintext .env file (dotenvx-encrypted / gitignored only).
     // The trailing `.` is the scan dir; `vp staged` appends the matched filenames
     // after it (ignored), and `precommit` runs its own git-staged scan.
